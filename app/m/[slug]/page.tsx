@@ -14,7 +14,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const r = getRestaurant(slug);
+  const r = await getRestaurant(slug);
   if (!r) return { title: "Menu not found" };
   return { title: `${r.name} — Menu`, description: r.tagline };
 }
@@ -25,7 +25,7 @@ export default async function LiveMenuPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const r = getRestaurant(slug);
+  const r = await getRestaurant(slug);
   if (!r) notFound();
   return <LiveMenu slug={slug} initial={r} />;
 }

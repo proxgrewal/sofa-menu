@@ -62,8 +62,8 @@ test("payment is stubbed as deferred (integration point)", () => {
   assert.deepEqual(capturePayment(5000, "USD"), { status: "deferred" });
 });
 
-test("placeOrder persists an order the restaurant can see", () => {
-  const order = placeOrder({
+test("placeOrder persists an order the restaurant can see", async () => {
+  const order = await placeOrder({
     restaurantSlug: "olive-grove",
     tableLabel: "12",
     items: [{ dishId: "dish_3", quantity: 1 }],
@@ -75,20 +75,20 @@ test("placeOrder persists an order the restaurant can see", () => {
   assert.equal(order.tableLabel, "12");
 
   // Guest can re-fetch their confirmation.
-  const fetched = getOrder(order.id)!;
+  const fetched = (await getOrder(order.id))!;
   assert.equal(fetched.id, order.id);
 
   // Restaurant sees it in its order list.
-  const visible = listOrders("olive-grove");
+  const visible = await listOrders("olive-grove");
   assert.ok(visible.some((o) => o.id === order.id), "order visible to restaurant");
 
   // Restaurant advances it through the lifecycle.
-  assert.equal(updateOrderStatus(order.id, "in_progress").status, "in_progress");
-  assert.equal(getOrder(order.id)!.status, "in_progress");
+  assert.equal((await updateOrderStatus(order.id, "in_progress")).status, "in_progress");
+  assert.equal((await getOrder(order.id))!.status, "in_progress");
 });
 
-test("placeOrder rejects unknown restaurant", () => {
-  assert.throws(
+test("placeOrder rejects unknown restaurant", async () => {
+  await assert.rejects(
     () => placeOrder({ restaurantSlug: "ghost", items: [{ dishId: "x", quantity: 1 }] }),
     OrderError
   );

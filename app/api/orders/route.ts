@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const order = placeOrder(body as Parameters<typeof placeOrder>[0]);
+    const order = await placeOrder(body as Parameters<typeof placeOrder>[0]);
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
     if (err instanceof OrderError) {
@@ -35,5 +35,5 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   }
-  return NextResponse.json({ orders: listOrders(slug) });
+  return NextResponse.json({ orders: await listOrders(slug) });
 }

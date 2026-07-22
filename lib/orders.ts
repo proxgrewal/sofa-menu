@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getRestaurantBySlug, type Restaurant } from "./data";
+import { getServiceClient, isSupabaseConfigured } from "./supabase";
 
 export type OrderStatus =
   | "placed" // guest submitted; kitchen has not acknowledged
@@ -80,8 +81,12 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
 
 // --- Persistence ---------------------------------------------------------
+//
+// SOFA-13: orders live in Postgres when Supabase is configured — this is what
+// survives Vercel's ephemeral filesystem across redeploys. Otherwise they fall
+// back to a local JSON file so the app runs with zero infra in local dev.
 
-function readAll(): Order[] {
+function fileReadAll(): Order[] {
   try {
     const raw = fs.readFileSync(ORDERS_FILE, "utf8");
     const parsed = JSON.parse(raw);
@@ -91,11 +96,102 @@ function readAll(): Order[] {
   }
 }
 
-function writeAll(orders: Order[]): void {
+function fileWriteAll(orders: Order[]): void {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = `${ORDERS_FILE}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(orders, null, 2));
   fs.renameSync(tmp, ORDERS_FILE); // atomic swap to avoid torn reads
+}
+
+// --- Postgres mapping ----------------------------------------------------
+
+type OrderRow = {
+  id: string;
+  ticket: string;
+  restaurant_slug: string;
+  restaurant_name: string;
+  table_label: string;
+  currency: string;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  status: OrderStatus;
+  payment_status: PaymentStatus;
+  note: string;
+  created_at: string;
+  updated_at: string;
+  order_items?: OrderItemRow[] | null;
+};
+type OrderItemRow = {
+  dish_id: string;
+  name: string;
+  unit_price_cents: number;
+  quantity: number;
+  line_total_cents: number;
+};
+
+function rowToOrder(row: OrderRow): Order {
+  return {
+    id: row.id,
+    ticket: row.ticket,
+    restaurantSlug: row.restaurant_slug,
+    restaurantName: row.restaurant_name,
+    tableLabel: row.table_label,
+    currency: row.currency,
+    lines: (row.order_items ?? []).map((i) => ({
+      dishId: i.dish_id,
+      name: i.name,
+      unitPriceCents: i.unit_price_cents,
+      quantity: i.quantity,
+      lineTotalCents: i.line_total_cents,
+    })),
+    subtotalCents: row.subtotal_cents,
+    taxCents: row.tax_cents,
+    totalCents: row.total_cents,
+    status: row.status,
+    paymentStatus: row.payment_status,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+const ORDER_SELECT =
+  "id, ticket, restaurant_slug, restaurant_name, table_label, currency, " +
+  "subtotal_cents, tax_cents, total_cents, status, payment_status, note, " +
+  "created_at, updated_at, order_items ( dish_id, name, unit_price_cents, quantity, line_total_cents )";
+
+async function dbInsertOrder(order: Order): Promise<void> {
+  const sb = await getServiceClient();
+  const { error: oErr } = await sb.from("orders").insert({
+    id: order.id,
+    ticket: order.ticket,
+    restaurant_slug: order.restaurantSlug,
+    restaurant_name: order.restaurantName,
+    table_label: order.tableLabel,
+    currency: order.currency,
+    subtotal_cents: order.subtotalCents,
+    tax_cents: order.taxCents,
+    total_cents: order.totalCents,
+    status: order.status,
+    payment_status: order.paymentStatus,
+    note: order.note,
+    created_at: order.createdAt,
+    updated_at: order.updatedAt,
+  });
+  if (oErr) throw new OrderError(`Could not save order: ${oErr.message}`, 500);
+
+  const { error: iErr } = await sb.from("order_items").insert(
+    order.lines.map((l) => ({
+      order_id: order.id,
+      dish_id: l.dishId,
+      name: l.name,
+      unit_price_cents: l.unitPriceCents,
+      quantity: l.quantity,
+      line_total_cents: l.lineTotalCents,
+    }))
+  );
+  if (iErr) throw new OrderError(`Could not save order items: ${iErr.message}`, 500);
 }
 
 // --- Pricing / validation (pure) ----------------------------------------
@@ -204,7 +300,7 @@ export type PlaceOrderInput = {
  * Validate + price + persist a guest order against a restaurant/table.
  * Returns the created Order. This is the write half of the DoD loop.
  */
-export function placeOrder(input: PlaceOrderInput): Order {
+export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
   const restaurant = getRestaurantBySlug(input?.restaurantSlug ?? "");
   if (!restaurant) {
     throw new OrderError("Restaurant not found.", 404);
@@ -213,8 +309,7 @@ export function placeOrder(input: PlaceOrderInput): Order {
   const priced = priceCart(restaurant, input.items);
   const payment = capturePayment(priced.totalCents, restaurant.currency);
 
-  const all = readAll();
-  const seq = all.filter((o) => o.restaurantSlug === restaurant.slug).length + 1;
+  const seq = (await countOrders(restaurant.slug)) + 1;
   const now = new Date().toISOString();
 
   const order: Order = {
@@ -235,18 +330,52 @@ export function placeOrder(input: PlaceOrderInput): Order {
     updatedAt: now,
   };
 
-  all.push(order);
-  writeAll(all);
+  if (isSupabaseConfigured()) {
+    await dbInsertOrder(order);
+  } else {
+    const all = fileReadAll();
+    all.push(order);
+    fileWriteAll(all);
+  }
   return order;
 }
 
-export function getOrder(id: string): Order | undefined {
-  return readAll().find((o) => o.id === id);
+async function countOrders(restaurantSlug: string): Promise<number> {
+  if (isSupabaseConfigured()) {
+    const sb = await getServiceClient();
+    const { count, error } = await sb
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_slug", restaurantSlug);
+    if (error) throw new OrderError(`Could not count orders: ${error.message}`, 500);
+    return count ?? 0;
+  }
+  return fileReadAll().filter((o) => o.restaurantSlug === restaurantSlug).length;
+}
+
+export async function getOrder(id: string): Promise<Order | undefined> {
+  if (isSupabaseConfigured()) {
+    const sb = await getServiceClient();
+    const { data, error } = await sb.from("orders").select(ORDER_SELECT).eq("id", id).maybeSingle();
+    if (error) throw new OrderError(`Could not load order: ${error.message}`, 500);
+    return data ? rowToOrder(data as OrderRow) : undefined;
+  }
+  return fileReadAll().find((o) => o.id === id);
 }
 
 /** Restaurant-facing: every order for a restaurant, newest first. */
-export function listOrders(restaurantSlug: string): Order[] {
-  return readAll()
+export async function listOrders(restaurantSlug: string): Promise<Order[]> {
+  if (isSupabaseConfigured()) {
+    const sb = await getServiceClient();
+    const { data, error } = await sb
+      .from("orders")
+      .select(ORDER_SELECT)
+      .eq("restaurant_slug", restaurantSlug)
+      .order("created_at", { ascending: false });
+    if (error) throw new OrderError(`Could not list orders: ${error.message}`, 500);
+    return (data as OrderRow[] | null ?? []).map(rowToOrder);
+  }
+  return fileReadAll()
     .filter((o) => o.restaurantSlug === restaurantSlug)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
@@ -260,13 +389,26 @@ const NEXT_STATUS: Record<OrderStatus, OrderStatus | null> = {
 };
 
 /** Restaurant-facing: advance an order through its lifecycle (or cancel). */
-export function updateOrderStatus(id: string, status: OrderStatus): Order {
-  const all = readAll();
+export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order> {
+  const now = new Date().toISOString();
+  if (isSupabaseConfigured()) {
+    const sb = await getServiceClient();
+    const { data, error } = await sb
+      .from("orders")
+      .update({ status, updated_at: now })
+      .eq("id", id)
+      .select(ORDER_SELECT)
+      .maybeSingle();
+    if (error) throw new OrderError(`Could not update order: ${error.message}`, 500);
+    if (!data) throw new OrderError("Order not found.", 404);
+    return rowToOrder(data as OrderRow);
+  }
+  const all = fileReadAll();
   const order = all.find((o) => o.id === id);
   if (!order) throw new OrderError("Order not found.", 404);
   order.status = status;
-  order.updatedAt = new Date().toISOString();
-  writeAll(all);
+  order.updatedAt = now;
+  fileWriteAll(all);
   return order;
 }
 

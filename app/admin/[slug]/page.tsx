@@ -11,7 +11,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const r = getRestaurant(slug);
+  const r = await getRestaurant(slug);
   return { title: r ? `${r.name} — Admin` : "Admin" };
 }
 
@@ -21,7 +21,7 @@ export default async function AdminPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const r = getRestaurant(slug);
+  const r = await getRestaurant(slug);
   if (!r) notFound();
   return <AdminBoard slug={slug} initial={r} />;
 }

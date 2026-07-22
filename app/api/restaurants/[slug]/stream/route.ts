@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ slug: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { slug } = await params;
-  const initial = getRestaurant(slug);
+  const initial = await getRestaurant(slug);
   if (!initial) return json({ error: "restaurant not found" }, 404);
 
   const encoder = new TextEncoder();

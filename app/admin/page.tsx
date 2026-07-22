@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "SOFA — Restaurant Admin" };
 
 // Admin home: pick a restaurant to manage.
-export default function AdminIndex() {
-  const restaurants = listRestaurants();
+export default async function AdminIndex() {
+  const restaurants = await listRestaurants();
   return (
     <main className="shell admin-index">
       <h1>Restaurant Admin</h1>

@@ -17,7 +17,7 @@ export default async function OrdersPage({
   const restaurant = getRestaurantBySlug(slug);
   if (!restaurant) notFound();
 
-  const orders = listOrders(slug);
+  const orders = await listOrders(slug);
 
   return (
     <main style={page}>

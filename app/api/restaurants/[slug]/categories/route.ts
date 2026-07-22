@@ -9,6 +9,6 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug } = await params;
     const { name } = await readJson<{ name?: string }>(req);
-    return json(createCategory(slug, name ?? ""), 201);
+    return json(await createCategory(slug, name ?? ""), 201);
   });
 }

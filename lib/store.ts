@@ -1,22 +1,28 @@
 // ---------------------------------------------------------------------------
-// Mutable menu store + real-time pub/sub (SOFA-5).
+// Mutable menu store + real-time pub/sub (SOFA-5, SOFA-13).
 //
 // lib/data.ts is a read-only seed. This module promotes it to a mutable,
 // persisted source of truth and adds an in-process event bus so admin edits
 // push to guest menus over SSE with no reprint / redeploy.
 //
-// Persistence: a single JSON file under data/. In-process only — fine for the
-// Next dev server (single process) and the pilot. Swapping the file for a real
-// DB later is a drop-in change behind these functions.
+// Persistence (SOFA-13): when Supabase is configured (isSupabaseConfigured()),
+// menus live in Postgres, read/written via the service-role client. This is
+// what survives Vercel's ephemeral filesystem across redeploys. When it is NOT
+// configured (local dev with zero infra), we fall back to the original
+// JSON-file-backed seed store so the app still runs with no external services.
 //
-// State + subscribers are stashed on globalThis so Next.js HMR / route-handler
-// module reloads don't reset live menus or drop SSE subscribers.
+// The app's stable text ids ("pcat_1", "dish_ab12cd34", …) are the primary
+// keys in Postgres too (migration 0003), so there is no id translation layer.
+//
+// The subscriber bus stays in-process (globalThis) — SSE clients connected to a
+// given server instance get pushed the full restaurant on every mutation.
 // ---------------------------------------------------------------------------
 
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { getAllRestaurants, type Restaurant, type Category, type Dish } from "./data";
+import { getServiceClient, isSupabaseConfigured } from "./supabase";
 
 // A dish in the mutable store gains an `available` flag (86'd items stay
 // visible on admin but are greyed out / hidden on the guest menu).
@@ -59,20 +65,159 @@ function seedFromData(): Map<string, StoredRestaurant> {
   return map;
 }
 
-function load(): void {
-  if (store.loaded) return;
+// --- Postgres persistence (SOFA-13) ----------------------------------------
+
+/** Hydrate the in-memory cache from Postgres, seeding it on first run. */
+async function loadFromDb(): Promise<void> {
+  const sb = await getServiceClient();
+  const { data, error } = await sb
+    .from("restaurants")
+    .select(
+      "id, slug, name, tagline, currency, " +
+        "menus ( id, name, categories ( id, name, sort_order, " +
+        "dishes ( id, name, description, price_cents, photo_url, is_available, sort_order ) ) )"
+    );
+  if (error) throw new StoreError(500, `db read failed: ${error.message}`);
+
+  if (!data || data.length === 0) {
+    // Empty DB: seed it from lib/data.ts so the pilot menu exists in Postgres.
+    store.bySlug = seedFromData();
+    for (const r of store.bySlug.values()) await saveToDb(r);
+    return;
+  }
+
+  const map = new Map<string, StoredRestaurant>();
+  for (const row of data as DbRestaurantRow[]) {
+    const menu = row.menus?.[0];
+    map.set(row.slug, {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      tagline: row.tagline ?? "",
+      currency: row.currency,
+      menu: {
+        id: menu?.id ?? `menu_${row.slug}`,
+        name: menu?.name ?? "Menu",
+        categories: (menu?.categories ?? [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            dishes: (c.dishes ?? [])
+              .slice()
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((d) => ({
+                id: d.id,
+                name: d.name,
+                description: d.description ?? "",
+                priceCents: d.price_cents,
+                photoUrl: d.photo_url,
+                available: d.is_available,
+              })),
+          })),
+      },
+    });
+  }
+  store.bySlug = map;
+}
+
+type DbDishRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  photo_url: string | null;
+  is_available: boolean;
+  sort_order: number;
+};
+type DbCategoryRow = { id: string; name: string; sort_order: number; dishes: DbDishRow[] | null };
+type DbMenuRow = { id: string; name: string; categories: DbCategoryRow[] | null };
+type DbRestaurantRow = {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string | null;
+  currency: string;
+  menus: DbMenuRow[] | null;
+};
+
+/**
+ * Persist a restaurant's full menu to Postgres by replacing its category/dish
+ * rows. A whole-menu replace (rather than granular ops) keeps the DB an exact
+ * mirror of the in-memory state for every mutation; cheap at pilot scale.
+ */
+async function saveToDb(r: StoredRestaurant): Promise<void> {
+  const sb = await getServiceClient();
+
+  const up = async (table: string, rows: unknown[]) => {
+    if (rows.length === 0) return;
+    const { error } = await sb.from(table).upsert(rows);
+    if (error) throw new StoreError(500, `db write (${table}) failed: ${error.message}`);
+  };
+
+  await up("restaurants", [
+    { id: r.id, slug: r.slug, name: r.name, tagline: r.tagline, currency: r.currency },
+  ]);
+  await up("menus", [{ id: r.menu.id, restaurant_id: r.id, name: r.menu.name }]);
+
+  // Delete categories no longer present (cascades to their dishes), then upsert
+  // the current set. Dishes of surviving categories are replaced per-category.
+  const catIds = r.menu.categories.map((c) => c.id);
+  const delCats = sb.from("categories").delete().eq("menu_id", r.menu.id);
+  const { error: delCatErr } = await (catIds.length
+    ? delCats.not("id", "in", `(${catIds.join(",")})`)
+    : delCats);
+  if (delCatErr) throw new StoreError(500, `db prune categories failed: ${delCatErr.message}`);
+
+  await up(
+    "categories",
+    r.menu.categories.map((c, i) => ({
+      id: c.id,
+      menu_id: r.menu.id,
+      name: c.name,
+      sort_order: i,
+    }))
+  );
+
+  for (const c of r.menu.categories) {
+    const dishIds = c.dishes.map((d) => d.id);
+    const delDishes = sb.from("dishes").delete().eq("category_id", c.id);
+    const { error: delDishErr } = await (dishIds.length
+      ? delDishes.not("id", "in", `(${dishIds.join(",")})`)
+      : delDishes);
+    if (delDishErr) throw new StoreError(500, `db prune dishes failed: ${delDishErr.message}`);
+
+    await up(
+      "dishes",
+      c.dishes.map((d, i) => ({
+        id: d.id,
+        category_id: c.id,
+        name: d.name,
+        description: d.description,
+        price_cents: d.priceCents,
+        photo_url: d.photoUrl,
+        is_available: d.available,
+        sort_order: i,
+      }))
+    );
+  }
+}
+
+// --- JSON-file fallback (no Supabase configured) ---------------------------
+
+function loadFromFile(): void {
   try {
     const raw = readFileSync(STATE_FILE, "utf8");
     const arr = JSON.parse(raw) as StoredRestaurant[];
     store.bySlug = new Map(arr.map((r) => [r.slug, r]));
   } catch {
     store.bySlug = seedFromData();
-    persist();
+    persistToFile();
   }
-  store.loaded = true;
 }
 
-function persist(): void {
+function persistToFile(): void {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
     writeFileSync(STATE_FILE, JSON.stringify([...store.bySlug.values()], null, 2));
@@ -81,8 +226,33 @@ function persist(): void {
   }
 }
 
-function emit(event: string, r: StoredRestaurant): void {
-  persist();
+// --- Load / persist dispatch -----------------------------------------------
+
+/** Ensure the in-memory cache reflects the backing store before a read/mutate.
+ * With Postgres configured we re-read every time so reads stay fresh across
+ * server instances; with the file fallback we load once. */
+async function ensureLoaded(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await loadFromDb();
+    store.loaded = true;
+    return;
+  }
+  if (store.loaded) return;
+  loadFromFile();
+  store.loaded = true;
+}
+
+async function persist(r: StoredRestaurant): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await saveToDb(r);
+  } else {
+    persistToFile();
+  }
+}
+
+/** Persist a mutation and push the new state to any subscribed SSE clients. */
+async function commit(event: string, r: StoredRestaurant): Promise<void> {
+  await persist(r);
   const set = store.subs.get(r.slug);
   if (!set) return;
   for (const fn of set) {
@@ -96,20 +266,19 @@ function emit(event: string, r: StoredRestaurant): void {
 
 // --- Reads ------------------------------------------------------------------
 
-export function getRestaurant(slug: string): StoredRestaurant | undefined {
-  load();
+export async function getRestaurant(slug: string): Promise<StoredRestaurant | undefined> {
+  await ensureLoaded();
   return store.bySlug.get(slug);
 }
 
-export function listRestaurants(): StoredRestaurant[] {
-  load();
+export async function listRestaurants(): Promise<StoredRestaurant[]> {
+  await ensureLoaded();
   return [...store.bySlug.values()];
 }
 
 // --- Subscriptions (SSE) ----------------------------------------------------
 
 export function subscribe(slug: string, fn: Subscriber): () => void {
-  load();
   let set = store.subs.get(slug);
   if (!set) {
     set = new Set();
@@ -121,8 +290,8 @@ export function subscribe(slug: string, fn: Subscriber): () => void {
 
 // --- Helpers ----------------------------------------------------------------
 
-function mustRestaurant(slug: string): StoredRestaurant {
-  const r = getRestaurant(slug);
+async function mustRestaurant(slug: string): Promise<StoredRestaurant> {
+  const r = await getRestaurant(slug);
   if (!r) throw new StoreError(404, `restaurant '${slug}' not found`);
   return r;
 }
@@ -141,38 +310,45 @@ export class StoreError extends Error {
 
 // --- Category mutations -----------------------------------------------------
 
-export function createCategory(slug: string, name: string): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function createCategory(slug: string, name: string): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const clean = (name ?? "").trim();
   if (!clean) throw new StoreError(400, "category name is required");
   r.menu.categories.push({ id: `cat_${randomUUID().slice(0, 8)}`, name: clean, dishes: [] });
-  emit("category.created", r);
+  await commit("category.created", r);
   return r;
 }
 
-export function updateCategory(slug: string, categoryId: string, name: string): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function updateCategory(
+  slug: string,
+  categoryId: string,
+  name: string
+): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const c = findCategory(r, categoryId);
   const clean = (name ?? "").trim();
   if (!clean) throw new StoreError(400, "category name is required");
   c.name = clean;
-  emit("category.updated", r);
+  await commit("category.updated", r);
   return r;
 }
 
-export function deleteCategory(slug: string, categoryId: string): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function deleteCategory(slug: string, categoryId: string): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const before = r.menu.categories.length;
   r.menu.categories = r.menu.categories.filter((c) => c.id !== categoryId);
   if (r.menu.categories.length === before) throw new StoreError(404, "category not found");
-  emit("category.deleted", r);
+  await commit("category.deleted", r);
   return r;
 }
 
-export function reorderCategories(slug: string, orderedIds: string[]): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function reorderCategories(
+  slug: string,
+  orderedIds: string[]
+): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   r.menu.categories = applyOrder(r.menu.categories, orderedIds);
-  emit("category.reordered", r);
+  await commit("category.reordered", r);
   return r;
 }
 
@@ -186,8 +362,12 @@ export type DishInput = {
   available?: boolean;
 };
 
-export function createDish(slug: string, categoryId: string, input: DishInput): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function createDish(
+  slug: string,
+  categoryId: string,
+  input: DishInput
+): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const c = findCategory(r, categoryId);
   const name = (input.name ?? "").trim();
   if (!name) throw new StoreError(400, "dish name is required");
@@ -199,16 +379,16 @@ export function createDish(slug: string, categoryId: string, input: DishInput): 
     photoUrl: input.photoUrl ?? null,
     available: input.available ?? true,
   });
-  emit("dish.created", r);
+  await commit("dish.created", r);
   return r;
 }
 
-export function updateDish(
+export async function updateDish(
   slug: string,
   dishId: string,
   input: DishInput
-): StoredRestaurant {
-  const r = mustRestaurant(slug);
+): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const dish = findDish(r, dishId);
   if (input.name !== undefined) {
     const name = input.name.trim();
@@ -219,12 +399,12 @@ export function updateDish(
   if (input.priceCents !== undefined) dish.priceCents = normalizePrice(input.priceCents);
   if (input.photoUrl !== undefined) dish.photoUrl = input.photoUrl;
   if (input.available !== undefined) dish.available = !!input.available;
-  emit("dish.updated", r);
+  await commit("dish.updated", r);
   return r;
 }
 
-export function deleteDish(slug: string, dishId: string): StoredRestaurant {
-  const r = mustRestaurant(slug);
+export async function deleteDish(slug: string, dishId: string): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   let removed = false;
   for (const c of r.menu.categories) {
     const before = c.dishes.length;
@@ -232,17 +412,17 @@ export function deleteDish(slug: string, dishId: string): StoredRestaurant {
     if (c.dishes.length !== before) removed = true;
   }
   if (!removed) throw new StoreError(404, "dish not found");
-  emit("dish.deleted", r);
+  await commit("dish.deleted", r);
   return r;
 }
 
 // Reorder dishes within a category, and/or move a dish to another category.
-export function reorderDishes(
+export async function reorderDishes(
   slug: string,
   categoryId: string,
   orderedIds: string[]
-): StoredRestaurant {
-  const r = mustRestaurant(slug);
+): Promise<StoredRestaurant> {
+  const r = await mustRestaurant(slug);
   const target = findCategory(r, categoryId);
   // Pull any listed dishes out of every category first (supports cross-category moves).
   const pulled = new Map<string, StoredDish>();
@@ -258,7 +438,7 @@ export function reorderDishes(
   target.dishes = orderedIds
     .map((id) => pulled.get(id))
     .filter((d): d is StoredDish => !!d);
-  emit("dish.reordered", r);
+  await commit("dish.reordered", r);
   return r;
 }
 

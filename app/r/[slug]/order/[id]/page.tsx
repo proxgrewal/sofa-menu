@@ -11,7 +11,7 @@ export default async function OrderConfirmationPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
-  const order = getOrder(id);
+  const order = await getOrder(id);
   if (!order || order.restaurantSlug !== slug) notFound();
 
   const fmt = (c: number) => formatPrice(c, order.currency);

@@ -9,6 +9,6 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug, categoryId } = await params;
     const body = await readJson<DishInput>(req);
-    return json(createDish(slug, categoryId, body), 201);
+    return json(await createDish(slug, categoryId, body), 201);
   });
 }

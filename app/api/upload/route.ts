@@ -2,10 +2,16 @@ import { randomUUID } from "node:crypto";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { handle, json } from "@/lib/http";
+import { getServiceClient, isSupabaseConfigured, DISH_PHOTOS_BUCKET } from "@/lib/supabase";
 
-// Photo upload: accepts a multipart form with a `file` field, writes it under
-// public/uploads, and returns the public URL to store on the dish. Non-technical
-// users just pick a photo; the admin UI wires the returned url into the dish.
+// Photo upload: accepts a multipart form with a `file` field and returns the
+// public URL to store on the dish. Non-technical users just pick a photo; the
+// admin UI wires the returned url into the dish.
+//
+// SOFA-13: when Supabase is configured the file is uploaded (server-side, with
+// the service-role key) to the public `dish-photos` storage bucket and the CDN
+// URL is returned — this survives Vercel's ephemeral filesystem. Otherwise it
+// falls back to writing under public/uploads for local dev.
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -30,11 +36,21 @@ export async function POST(req: Request) {
     if (bytes.length === 0) return json({ error: "empty file" }, 400);
     if (bytes.length > MAX_BYTES) return json({ error: "file too large (max 8MB)" }, 413);
 
+    const name = `${randomUUID()}.${ext}`;
+
+    if (isSupabaseConfigured()) {
+      const sb = await getServiceClient();
+      const { error } = await sb.storage
+        .from(DISH_PHOTOS_BUCKET)
+        .upload(name, bytes, { contentType: file.type, upsert: false });
+      if (error) return json({ error: `upload failed: ${error.message}` }, 500);
+      const { data } = sb.storage.from(DISH_PHOTOS_BUCKET).getPublicUrl(name);
+      return json({ url: data.publicUrl }, 201);
+    }
+
     const dir = join(process.cwd(), "public", "uploads");
     await mkdir(dir, { recursive: true });
-    const name = `${randomUUID()}.${ext}`;
     await writeFile(join(dir, name), bytes);
-
     return json({ url: `/uploads/${name}` }, 201);
   });
 }

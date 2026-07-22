@@ -9,13 +9,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug, categoryId } = await params;
     const { name } = await readJson<{ name?: string }>(req);
-    return json(updateCategory(slug, categoryId, name ?? ""));
+    return json(await updateCategory(slug, categoryId, name ?? ""));
   });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug, categoryId } = await params;
-    return json(deleteCategory(slug, categoryId));
+    return json(await deleteCategory(slug, categoryId));
   });
 }

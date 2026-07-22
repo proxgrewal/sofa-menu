@@ -9,6 +9,6 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug } = await params;
     const { orderedIds } = await readJson<{ orderedIds?: string[] }>(req);
-    return json(reorderCategories(slug, orderedIds ?? []));
+    return json(await reorderCategories(slug, orderedIds ?? []));
   });
 }

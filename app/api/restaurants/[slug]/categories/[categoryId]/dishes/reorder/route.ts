@@ -12,6 +12,6 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const { slug, categoryId } = await params;
     const { orderedIds } = await readJson<{ orderedIds?: string[] }>(req);
-    return json(reorderDishes(slug, categoryId, orderedIds ?? []));
+    return json(await reorderDishes(slug, categoryId, orderedIds ?? []));
   });
 }
