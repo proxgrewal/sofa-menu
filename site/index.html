@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="theme-color" content="#faf8f5" />
+    <title>SOFA — Scan. Order. Feast. Anywhere.</title>
+    <meta name="description" content="Every restaurant menu, one scan away. Deployed skeleton." />
+    <style>
+      :root {
+        --bg: #faf8f5; --surface: #fff; --ink: #1a1a1a;
+        --muted: #6b6b6b; --accent: #b5502a; --border: #eae4dc; --radius: 16px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased; }
+      .shell { max-width: 520px; margin: 0 auto; padding: 40px 20px 64px; }
+      .badge { display: inline-block; font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+      h1 { font-size: 30px; line-height: 1.15; letter-spacing: -0.02em; margin: 10px 0 8px; }
+      .tagline { color: var(--muted); margin: 0 0 28px; font-size: 16px; }
+      .card { background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; }
+      .card h2 { font-size: 15px; margin: 0 0 6px; }
+      .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+      .ok { color: #2e7d32; font-weight: 600; }
+      .todo { color: var(--accent); font-weight: 600; }
+      .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 34px; }
+      code { background: #f0ece6; padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <span class="badge">SOFA · deployed skeleton</span>
+      <h1>Scan. Order. Feast. Anywhere.</h1>
+      <p class="tagline">Every restaurant menu, one scan away.</p>
+
+      <div class="card">
+        <h2>Status <span class="ok">● live</span></h2>
+        <p>This page is served from GitHub Pages by the SOFA deploy pipeline — proof the hosting + CI/CD path is wired end to end.</p>
+      </div>
+
+      <div class="card">
+        <h2>Foundation</h2>
+        <p>
+          <span class="ok">✓</span> Repository &amp; project structure (Next.js web + API)<br />
+          <span class="ok">✓</span> CI on every push (typecheck, lint, build)<br />
+          <span class="ok">✓</span> Postgres schema + <code>dish-photos</code> storage (Supabase)<br />
+          <span class="ok">✓</span> Documented deploy path (<code>docs/DEPLOY.md</code>)
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Full app</h2>
+        <p>The dynamic guest menu, QR codes, restaurant admin and ordering flow (SOFA-4…7) run as a Next.js app and deploy to Vercel with a live Supabase database. See <code>docs/DEPLOY.md</code> to provision and go live.</p>
+      </div>
+
+      <p class="footer">SOFA · SoftTech · deployed skeleton for SOFA-3</p>
+    </main>
+  </body>
+</html>

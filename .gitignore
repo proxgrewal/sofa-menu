@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+next-env.d.ts
+*.tsbuildinfo
+
+# Local env / secrets — never commit
+.env
+.env.local
+.env*.local
+.vercel
+
+# SOFA-5 runtime artifacts
+/public/uploads/*
+!/public/uploads/.gitkeep
+/data/menu-state.json
