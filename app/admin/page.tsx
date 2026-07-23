@@ -1,6 +1,7 @@
 import Link from "next/link";
 import "@/components/sofa5.css";
 import { listRestaurants } from "@/lib/store";
+import LogoutButton from "@/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,10 @@ export default async function AdminIndex() {
   const restaurants = await listRestaurants();
   return (
     <main className="shell admin-index">
-      <h1>Restaurant Admin</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <h1>Restaurant Admin</h1>
+        <LogoutButton />
+      </div>
       <p className="tagline">Choose a restaurant to edit its live menu.</p>
       <ul className="admin-list">
         {restaurants.map((r) => (
