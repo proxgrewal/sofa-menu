@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  getCart,
-  setQuantity,
-  clearCart,
-  CART_EVENT,
-  type CartLine,
-} from "@/lib/cart";
+import { getCart, setQuantity, clearCart, CART_EVENT, type CartLine } from "@/lib/cart";
 
 const TAX_RATE = 0.0825; // display estimate; server is authoritative
 
@@ -40,9 +34,7 @@ export default function CartClient({
   }, [slug]);
 
   const fmt = (cents: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-      cents / 100
-    );
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 
   const subtotal = lines.reduce((n, l) => n + l.unitPriceCents * l.quantity, 0);
   const tax = Math.round(subtotal * TAX_RATE);
@@ -96,9 +88,7 @@ export default function CartClient({
           <li key={l.dishId} style={row}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600 }}>{l.name}</div>
-              <div style={{ color: "#666", fontSize: 14 }}>
-                {fmt(l.unitPriceCents)} each
-              </div>
+              <div style={{ color: "#666", fontSize: 14 }}>{fmt(l.unitPriceCents)} each</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
@@ -109,9 +99,7 @@ export default function CartClient({
               >
                 −
               </button>
-              <span style={{ minWidth: 16, textAlign: "center" }}>
-                {l.quantity}
-              </span>
+              <span style={{ minWidth: 16, textAlign: "center" }}>{l.quantity}</span>
               <button
                 type="button"
                 style={stepper}

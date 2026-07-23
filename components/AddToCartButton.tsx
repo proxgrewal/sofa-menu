@@ -18,8 +18,7 @@ export default function AddToCartButton({
   const [qty, setQty] = useState(0);
 
   useEffect(() => {
-    const sync = () =>
-      setQty(getCart(slug).find((l) => l.dishId === dish.id)?.quantity ?? 0);
+    const sync = () => setQty(getCart(slug).find((l) => l.dishId === dish.id)?.quantity ?? 0);
     sync();
     window.addEventListener(CART_EVENT, sync);
     return () => window.removeEventListener(CART_EVENT, sync);

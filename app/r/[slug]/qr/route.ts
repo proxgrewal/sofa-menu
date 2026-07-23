@@ -10,10 +10,7 @@ import { getBaseUrl, menuPath } from "@/lib/url";
 // scannable regardless of which origin the app is served from.
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const restaurant = getRestaurantBySlug(slug);
   if (!restaurant) {

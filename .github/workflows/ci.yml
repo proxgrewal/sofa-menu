@@ -20,14 +20,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Lint
-        # next lint prompts interactively when no ESLint config exists, which
-        # fails in CI. Run it only once a config is committed; typecheck + build
-        # provide the hard gate until then.
-        run: |
-          if [ -f .eslintrc.json ] || [ -f .eslintrc.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.js ]; then
-            npm run lint
-          else
-            echo "No ESLint config present — skipping lint."
-          fi
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Unit tests
+        run: npm test
       - name: Build
         run: npm run build

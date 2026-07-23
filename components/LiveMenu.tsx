@@ -16,7 +16,11 @@ export default function LiveMenu({
   const { restaurant, connected } = useMenuStream(slug, initial ?? null);
 
   if (!restaurant) {
-    return <main className="shell live-menu"><p className="loading">Loading menu…</p></main>;
+    return (
+      <main className="shell live-menu">
+        <p className="loading">Loading menu…</p>
+      </main>
+    );
   }
 
   const { menu, currency } = restaurant;
@@ -27,7 +31,10 @@ export default function LiveMenu({
         <h1>{restaurant.name}</h1>
         <p className="tagline">{restaurant.tagline}</p>
         <span className="menu-name">{menu.name}</span>
-        <span className={`live-dot ${connected ? "on" : "off"}`} title={connected ? "Live" : "Reconnecting…"}>
+        <span
+          className={`live-dot ${connected ? "on" : "off"}`}
+          title={connected ? "Live" : "Reconnecting…"}
+        >
           {connected ? "● Live" : "○ Reconnecting"}
         </span>
       </header>
@@ -44,7 +51,9 @@ export default function LiveMenu({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img className="photo" src={dish.photoUrl} alt={dish.name} />
                 ) : (
-                  <div className="photo placeholder" aria-hidden="true">🍽</div>
+                  <div className="photo placeholder" aria-hidden="true">
+                    🍽
+                  </div>
                 )}
                 <div className="body">
                   <div className="row">

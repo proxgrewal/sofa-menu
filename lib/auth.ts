@@ -15,11 +15,28 @@
 
 export const SESSION_COOKIE = "sofa_admin";
 
+// A session's scope: "all" is a superadmin (ADMIN_PASSWORD) who can manage every
+// restaurant; otherwise it's a single restaurant slug (a per-restaurant owner
+// from SOFA_OWNERS). See docs/SOFA-16-admin-auth.md.
+export const SCOPE_ALL = "all";
+
 const DEV_PASSWORD = "sofa-admin";
 const DEV_SECRET = "dev-insecure-secret-change-me";
 
 function password(): string {
   return process.env.ADMIN_PASSWORD || DEV_PASSWORD;
+}
+
+/** Parse SOFA_OWNERS (JSON map of slug -> password); {} when unset/invalid. */
+function owners(): Record<string, string> {
+  const raw = process.env.SOFA_OWNERS;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
 }
 
 function secret(): string {
@@ -60,7 +77,7 @@ async function hmacKey(): Promise<CryptoKey> {
     enc.encode(secret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign", "verify"],
+    ["sign", "verify"]
   );
 }
 
@@ -72,19 +89,43 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
-type SessionPayload = { sub: string; exp: number };
+export type SessionPayload = { sub: string; exp: number; scope: string };
 
-/** Verify a plaintext password against the configured owner password. */
-export function checkPassword(candidate: string): boolean {
-  const expected = enc.encode(password());
-  const got = enc.encode(candidate ?? "");
-  return bytesEqual(expected, got);
+function eqStr(a: string, b: string): boolean {
+  return bytesEqual(enc.encode(a), enc.encode(b));
 }
 
-/** Mint a signed session token for the owner. */
-export async function createSession(): Promise<{ token: string; maxAgeSec: number }> {
+/**
+ * Authenticate a plaintext password and resolve its scope. Returns SCOPE_ALL for
+ * the superadmin password, a restaurant slug for a per-restaurant owner, or null
+ * if nothing matches. Every configured password is checked (no early return) so
+ * timing doesn't leak which passwords exist.
+ */
+export function authenticate(candidate: string): string | null {
+  const pw = candidate ?? "";
+  let scope: string | null = null;
+  if (eqStr(password(), pw)) scope = SCOPE_ALL;
+  for (const [slug, ownerPw] of Object.entries(owners())) {
+    if (eqStr(ownerPw, pw) && scope === null) scope = slug;
+  }
+  return scope;
+}
+
+/** Back-compat: true when the password is valid for any scope. */
+export function checkPassword(candidate: string): boolean {
+  return authenticate(candidate) !== null;
+}
+
+/** True when a session may manage the given restaurant slug. */
+export function canAccess(session: SessionPayload | null, slug: string): boolean {
+  if (!session) return false;
+  return session.scope === SCOPE_ALL || session.scope === slug;
+}
+
+/** Mint a signed session token for the owner with the given scope. */
+export async function createSession(scope: string): Promise<{ token: string; maxAgeSec: number }> {
   const maxAge = ttlMs();
-  const payload: SessionPayload = { sub: "owner", exp: nowMs() + maxAge };
+  const payload: SessionPayload = { sub: "owner", exp: nowMs() + maxAge, scope };
   const body = toB64Url(enc.encode(JSON.stringify(payload)));
   const sig = await crypto.subtle.sign("HMAC", await hmacKey(), enc.encode(body));
   const token = `${body}.${toB64Url(new Uint8Array(sig))}`;
@@ -95,7 +136,9 @@ export async function createSession(): Promise<{ token: string; maxAgeSec: numbe
  * Verify a session token. Returns the payload when the signature is valid and
  * the session has not expired, otherwise null. Safe to call in middleware.
  */
-export async function verifySession(token: string | undefined | null): Promise<SessionPayload | null> {
+export async function verifySession(
+  token: string | undefined | null
+): Promise<SessionPayload | null> {
   if (!token) return null;
   const dot = token.indexOf(".");
   if (dot <= 0) return null;
@@ -111,6 +154,7 @@ export async function verifySession(token: string | undefined | null): Promise<S
   try {
     const payload = JSON.parse(new TextDecoder().decode(fromB64Url(body))) as SessionPayload;
     if (!payload || payload.sub !== "owner" || typeof payload.exp !== "number") return null;
+    if (typeof payload.scope !== "string" || !payload.scope) return null;
     if (payload.exp < nowMs()) return null;
     return payload;
   } catch {

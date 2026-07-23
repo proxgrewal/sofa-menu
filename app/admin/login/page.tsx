@@ -6,11 +6,10 @@
 // cookie; on success we bounce to `?next=` (the page the middleware bounced
 // us away from) or the admin home.
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import "@/components/sofa5.css";
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/admin";
   const [password, setPassword] = useState("");
@@ -28,8 +27,12 @@ function LoginForm() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
+        // Prefer the page we were bounced from; otherwise land on the scope's
+        // home (own restaurant for an owner, index for a superadmin).
+        const data = await res.json().catch(() => ({}));
+        const dest = next.startsWith("/") && next !== "/admin" ? next : data.home || "/admin";
         // Full navigation so the new cookie is picked up by the server render.
-        window.location.assign(next.startsWith("/") ? next : "/admin");
+        window.location.assign(dest);
         return;
       }
       const data = await res.json().catch(() => ({}));
@@ -46,7 +49,9 @@ function LoginForm() {
       <h1>Owner sign in</h1>
       <p className="tagline">Enter the owner password to manage your menu.</p>
       <form onSubmit={submit} className="admin-login">
-        <label htmlFor="pw" className="muted">Password</label>
+        <label htmlFor="pw" className="muted">
+          Password
+        </label>
         <input
           id="pw"
           type="password"
@@ -71,7 +76,13 @@ function LoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <Suspense fallback={<main className="shell" style={{ maxWidth: 380 }}><h1>Owner sign in</h1></main>}>
+    <Suspense
+      fallback={
+        <main className="shell" style={{ maxWidth: 380 }}>
+          <h1>Owner sign in</h1>
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

@@ -9,54 +9,46 @@ import type { StoredRestaurant, StoredCategory, StoredDish } from "@/lib/store";
 // every save hits the API, which broadcasts over SSE so the guest menu (and any
 // other open admin tab) updates instantly. Reordering uses up/down controls to
 // stay dependency-free and touch-friendly.
-export default function AdminBoard({
-  slug,
-  initial,
-}: {
-  slug: string;
-  initial: StoredRestaurant;
-}) {
+export default function AdminBoard({ slug, initial }: { slug: string; initial: StoredRestaurant }) {
   const { restaurant, connected } = useMenuStream(slug, initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Thin fetch wrapper: surfaces API errors and manages a global busy flag.
-  const call = useCallback(
-    async (path: string, init?: RequestInit) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const res = await fetch(path, {
-          ...init,
-          headers:
-            init?.body && !(init.body instanceof FormData)
-              ? { "content-type": "application/json", ...init?.headers }
-              : init?.headers,
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `request failed (${res.status})`);
-        }
-        return res.json();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "request failed");
-        throw e;
-      } finally {
-        setBusy(false);
+  const call = useCallback(async (path: string, init?: RequestInit) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(path, {
+        ...init,
+        headers:
+          init?.body && !(init.body instanceof FormData)
+            ? { "content-type": "application/json", ...init?.headers }
+            : init?.headers,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `request failed (${res.status})`);
       }
-    },
-    []
-  );
+      return res.json();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "request failed");
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const r = restaurant ?? initial;
   const cats = r.menu.categories;
 
   const addCategory = async () => {
     const name = prompt("New category name?");
-    if (name?.trim()) await call(`/api/restaurants/${slug}/categories`, {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
+    if (name?.trim())
+      await call(`/api/restaurants/${slug}/categories`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
   };
 
   const moveCategory = async (index: number, dir: -1 | 1) => {
@@ -87,7 +79,11 @@ export default function AdminBoard({
         </div>
       </header>
 
-      {error && <div className="banner error" role="alert">{error}</div>}
+      {error && (
+        <div className="banner error" role="alert">
+          {error}
+        </div>
+      )}
       {busy && <div className="banner info">Saving…</div>}
 
       {cats.map((cat, i) => (
@@ -171,10 +167,28 @@ function CategoryCard({
       <div className="admin-cat-head">
         <h2>{category.name}</h2>
         <div className="ctrls">
-          <button className="icon" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move category up">↑</button>
-          <button className="icon" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move category down">↓</button>
-          <button className="icon" onClick={rename} aria-label="Rename category">✎</button>
-          <button className="icon danger" onClick={remove} aria-label="Delete category">🗑</button>
+          <button
+            className="icon"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            aria-label="Move category up"
+          >
+            ↑
+          </button>
+          <button
+            className="icon"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            aria-label="Move category down"
+          >
+            ↓
+          </button>
+          <button className="icon" onClick={rename} aria-label="Rename category">
+            ✎
+          </button>
+          <button className="icon danger" onClick={remove} aria-label="Delete category">
+            🗑
+          </button>
         </div>
       </div>
 
@@ -194,7 +208,9 @@ function CategoryCard({
         />
       ))}
 
-      <button className="btn ghost add-dish" onClick={addDish}>+ Add dish</button>
+      <button className="btn ghost add-dish" onClick={addDish}>
+        + Add dish
+      </button>
     </section>
   );
 }
@@ -301,8 +317,12 @@ function DishRow({
               />
             </div>
             <div className="edit-actions">
-              <button className="btn primary" onClick={save}>Save</button>
-              <button className="btn ghost" onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn primary" onClick={save}>
+                Save
+              </button>
+              <button className="btn ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
             </div>
           </div>
         ) : (
@@ -318,13 +338,38 @@ function DishRow({
       </div>
 
       <div className="admin-dish-ctrls">
-        <button className="icon" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up">↑</button>
-        <button className="icon" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down">↓</button>
-        <button className="icon" onClick={toggleAvailable} aria-label="Toggle availability" title={dish.available ? "Mark unavailable" : "Mark available"}>
+        <button className="icon" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up">
+          ↑
+        </button>
+        <button
+          className="icon"
+          onClick={onMoveDown}
+          disabled={!canMoveDown}
+          aria-label="Move down"
+        >
+          ↓
+        </button>
+        <button
+          className="icon"
+          onClick={toggleAvailable}
+          aria-label="Toggle availability"
+          title={dish.available ? "Mark unavailable" : "Mark available"}
+        >
           {dish.available ? "◉" : "○"}
         </button>
-        {dish.photoUrl && <button className="icon" onClick={removePhoto} aria-label="Remove photo" title="Remove photo">⌫</button>}
-        <button className="icon danger" onClick={remove} aria-label="Delete dish">🗑</button>
+        {dish.photoUrl && (
+          <button
+            className="icon"
+            onClick={removePhoto}
+            aria-label="Remove photo"
+            title="Remove photo"
+          >
+            ⌫
+          </button>
+        )}
+        <button className="icon danger" onClick={remove} aria-label="Delete dish">
+          🗑
+        </button>
       </div>
     </article>
   );

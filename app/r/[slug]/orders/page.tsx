@@ -8,11 +8,7 @@ import OrdersBoard from "./OrdersBoard";
 // each ticket. This is the restaurant half of the SOFA-6 DoD.
 export const dynamic = "force-dynamic";
 
-export default async function OrdersPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function OrdersPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const restaurant = getRestaurantBySlug(slug);
   if (!restaurant) notFound();
@@ -27,11 +23,7 @@ export default async function OrdersPage({
           Live guest orders. New tickets appear automatically.
         </p>
       </header>
-      <OrdersBoard
-        slug={slug}
-        currency={restaurant.currency}
-        initialOrders={orders}
-      />
+      <OrdersBoard slug={slug} currency={restaurant.currency} initialOrders={orders} />
     </main>
   );
 }

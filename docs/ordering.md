@@ -21,12 +21,12 @@ live menu (`lib/orders.ts`) so the client can't dictate prices.
 
 ## API
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| POST   | `/api/orders` | Place an order. Body: `{ restaurantSlug, tableLabel?, items:[{dishId,quantity}], note? }` → `201 { order }` |
-| GET    | `/api/orders?restaurant={slug}` | Restaurant order list, newest first |
-| GET    | `/api/orders/{id}` | Single order (guest confirmation polling) |
-| PATCH  | `/api/orders/{id}` | Advance/cancel. Body: `{ status }` |
+| Method | Path                            | Purpose                                                                                                     |
+| ------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/orders`                   | Place an order. Body: `{ restaurantSlug, tableLabel?, items:[{dishId,quantity}], note? }` → `201 { order }` |
+| GET    | `/api/orders?restaurant={slug}` | Restaurant order list, newest first                                                                         |
+| GET    | `/api/orders/{id}`              | Single order (guest confirmation polling)                                                                   |
+| PATCH  | `/api/orders/{id}`              | Advance/cancel. Body: `{ status }`                                                                          |
 
 Prices are integer cents; tax is a flat `TAX_RATE` in `lib/orders.ts`. Orders
 persist to `data/orders.json` (atomic write) so they survive across requests.

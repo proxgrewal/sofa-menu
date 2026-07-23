@@ -44,18 +44,9 @@ test("priceCart sums lines + tax and merges duplicate dishes", () => {
 
 test("priceCart rejects empty carts, bad quantities, unknown dishes", () => {
   assert.throws(() => priceCart(restaurant, []), OrderError);
-  assert.throws(
-    () => priceCart(restaurant, [{ dishId: "dish_1", quantity: 0 }]),
-    OrderError
-  );
-  assert.throws(
-    () => priceCart(restaurant, [{ dishId: "dish_1", quantity: 1.5 }]),
-    OrderError
-  );
-  assert.throws(
-    () => priceCart(restaurant, [{ dishId: "nope", quantity: 1 }]),
-    OrderError
-  );
+  assert.throws(() => priceCart(restaurant, [{ dishId: "dish_1", quantity: 0 }]), OrderError);
+  assert.throws(() => priceCart(restaurant, [{ dishId: "dish_1", quantity: 1.5 }]), OrderError);
+  assert.throws(() => priceCart(restaurant, [{ dishId: "nope", quantity: 1 }]), OrderError);
 });
 
 test("payment is stubbed as deferred (integration point)", () => {
@@ -80,7 +71,10 @@ test("placeOrder persists an order the restaurant can see", async () => {
 
   // Restaurant sees it in its order list.
   const visible = await listOrders("olive-grove");
-  assert.ok(visible.some((o) => o.id === order.id), "order visible to restaurant");
+  assert.ok(
+    visible.some((o) => o.id === order.id),
+    "order visible to restaurant"
+  );
 
   // Restaurant advances it through the lifecycle.
   assert.equal((await updateOrderStatus(order.id, "in_progress")).status, "in_progress");

@@ -5,20 +5,20 @@ with no reprint and no redeploy.
 
 ## What shipped
 
-| Piece | Path |
-| --- | --- |
-| Mutable, persisted menu store + in-process SSE pub/sub | `lib/store.ts` |
-| API error/JSON helpers | `lib/http.ts` |
-| Guest menu API | `app/api/restaurants/[slug]/menu/route.ts` |
-| **Live** menu stream (SSE) | `app/api/restaurants/[slug]/stream/route.ts` |
-| Category CRUD + reorder | `app/api/restaurants/[slug]/categories/**` |
-| Dish create / update / delete / reorder | `app/api/restaurants/[slug]/**/dishes/**`, `.../dishes/[dishId]` |
-| Photo upload | `app/api/upload/route.ts` → writes `public/uploads`, returns URL |
-| Admin home (pick a restaurant) | `app/admin/page.tsx` |
-| Admin editor (the core UI) | `app/admin/[slug]/page.tsx` + `components/AdminBoard.tsx` |
-| Real-time guest menu | `app/m/[slug]/page.tsx` + `components/LiveMenu.tsx` |
-| Shared SSE hook | `lib/useMenuStream.ts` |
-| Styles | `components/sofa5.css` (reuses tokens from `app/globals.css`) |
+| Piece                                                  | Path                                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------------- |
+| Mutable, persisted menu store + in-process SSE pub/sub | `lib/store.ts`                                                   |
+| API error/JSON helpers                                 | `lib/http.ts`                                                    |
+| Guest menu API                                         | `app/api/restaurants/[slug]/menu/route.ts`                       |
+| **Live** menu stream (SSE)                             | `app/api/restaurants/[slug]/stream/route.ts`                     |
+| Category CRUD + reorder                                | `app/api/restaurants/[slug]/categories/**`                       |
+| Dish create / update / delete / reorder                | `app/api/restaurants/[slug]/**/dishes/**`, `.../dishes/[dishId]` |
+| Photo upload                                           | `app/api/upload/route.ts` → writes `public/uploads`, returns URL |
+| Admin home (pick a restaurant)                         | `app/admin/page.tsx`                                             |
+| Admin editor (the core UI)                             | `app/admin/[slug]/page.tsx` + `components/AdminBoard.tsx`        |
+| Real-time guest menu                                   | `app/m/[slug]/page.tsx` + `components/LiveMenu.tsx`              |
+| Shared SSE hook                                        | `lib/useMenuStream.ts`                                           |
+| Styles                                                 | `components/sofa5.css` (reuses tokens from `app/globals.css`)    |
 
 ## How real-time works
 

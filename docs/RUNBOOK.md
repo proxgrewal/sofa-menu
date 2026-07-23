@@ -38,6 +38,7 @@ Two ways to load a menu:
    no reprint or redeploy.
 
 Checklist when entering a menu:
+
 - [ ] Every dish has a name and a price in cents.
 - [ ] Descriptions are short (one line reads best on mobile).
 - [ ] Photo URLs are https and reachable (allowed host configured in
@@ -66,6 +67,7 @@ Each restaurant gets a unique QR that resolves to its guest menu at `/r/{slug}`.
   ```
 
 Checklist:
+
 - [ ] Scan the generated code with a real phone camera — it must open the menu.
 - [ ] Print at ≥ 3 cm; keep the quiet-zone margin; test on the actual table
       material (matte laminate scans best).
@@ -82,6 +84,7 @@ BASE_URL=http://localhost:3000 SLUG=pilot-diner bash scripts/demo-e2e.sh
 ```
 
 The script exercises the full guest path against the **real pilot menu**:
+
 1. `GET /r/{slug}` — guest menu landing page loads (200).
 2. `GET /api/restaurants/{slug}/menu` — menu JSON has categories + dishes.
 3. `POST /api/orders` — place an order for real dishes; expect `201` + a ticket
@@ -89,6 +92,7 @@ The script exercises the full guest path against the **real pilot menu**:
 4. `GET /api/orders?restaurant={slug}` — the order is visible to the restaurant.
 
 Then do the **manual phone pass** (this is the recorded demo):
+
 - [ ] Scan the printed QR on a phone → menu opens.
 - [ ] Add items to the cart, adjust quantities, place the order.
 - [ ] Confirmation shows the ticket number and total.
@@ -124,11 +128,11 @@ Record a 30–60s screen capture of the phone doing the above → this is the
 
 ## Appendix: onboarding time budget
 
-| Step | Task | Time |
-|------|------|------|
-| 1 | Enter menu (seed or admin) | 10–15 min |
-| 2 | Generate + test QR | 2 min |
-| 3 | Run e2e + phone pass | 5 min |
-| 4 | Deploy + place QR | 3 min |
+| Step | Task                       | Time      |
+| ---- | -------------------------- | --------- |
+| 1    | Enter menu (seed or admin) | 10–15 min |
+| 2    | Generate + test QR         | 2 min     |
+| 3    | Run e2e + phone pass       | 5 min     |
+| 4    | Deploy + place QR          | 3 min     |
 
 Total: **~20–25 min** for a small menu.

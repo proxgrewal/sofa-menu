@@ -13,8 +13,25 @@ ordering flow. This repository is the SoftTech foundation all feature work
   `supabase/migrations/`). The app also ships with an in-memory seed store
   (`lib/data.ts`) so it runs with zero infrastructure.
 - **Image storage:** Supabase Storage bucket `dish-photos` for dish photos.
+- **Payments:** Optional [Stripe](https://stripe.com) online prepayment
+  (PaymentIntents + webhook). Off by default — orders are pay-at-table until the
+  `STRIPE_*` env vars are set.
 - **Hosting:** Vercel for the dynamic app; GitHub Pages for the static status
-  page. CI/CD via GitHub Actions.
+  page. CI/CD via GitHub Actions (typecheck, lint, format check, unit tests, build).
+
+## Features
+
+- Mobile-first guest menu + per-restaurant QR codes.
+- Guest ordering with a live kitchen board (SSE), including **new-order
+  sound + desktop alerts**.
+- Owner **admin** for real-time menu/price/photo edits.
+- **Owner authentication**, single- or **multi-tenant**: one `ADMIN_PASSWORD`
+  superadmin, plus optional per-restaurant owner passwords (`SOFA_OWNERS`) that
+  scope each owner to their own restaurant. See
+  [docs/SOFA-16-admin-auth.md](docs/SOFA-16-admin-auth.md).
+- **Sales analytics** per restaurant at `/admin/{slug}/analytics`.
+- Hardening: request validation, per-IP rate limiting on login + ordering, an
+  owner-only order-list endpoint, and unique ticket numbers under concurrency.
 
 ## Local development
 
@@ -25,6 +42,15 @@ npm run dev          # http://localhost:3000
 
 The app runs immediately against seed data. To use the real database, copy
 `.env.example` to `.env.local` and fill in the Supabase values.
+
+Quality gates (all run in CI):
+
+```bash
+npm run lint          # ESLint (flat config)
+npm run format        # Prettier --write  (format:check to verify)
+npm test              # unit tests (Node's native runner, no build step)
+npm run build         # Next.js production build
+```
 
 ## Project layout
 

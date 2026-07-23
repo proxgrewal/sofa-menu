@@ -8,14 +8,14 @@ behind a login.
 
 ## What shipped
 
-| Piece | Path |
-| --- | --- |
-| Edge/Node-safe session auth (HMAC-signed cookie, password check) | `lib/auth.ts` |
-| Route gate: redirect pages, 401 mutating APIs | `middleware.ts` |
-| Login / logout endpoints | `app/api/admin/session/route.ts` |
-| Owner login screen | `app/admin/login/page.tsx` |
-| "Sign out" control on the admin home | `components/LogoutButton.tsx` + `app/admin/page.tsx` |
-| Config keys | `.env.example` |
+| Piece                                                            | Path                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Edge/Node-safe session auth (HMAC-signed cookie, password check) | `lib/auth.ts`                                        |
+| Route gate: redirect pages, 401 mutating APIs                    | `middleware.ts`                                      |
+| Login / logout endpoints                                         | `app/api/admin/session/route.ts`                     |
+| Owner login screen                                               | `app/admin/login/page.tsx`                           |
+| "Sign out" control on the admin home                             | `components/LogoutButton.tsx` + `app/admin/page.tsx` |
+| Config keys                                                      | `.env.example`                                       |
 
 ## What is protected
 
@@ -37,7 +37,7 @@ Left public on purpose (the guest experience is zero-friction):
 2. `POST /api/admin/session` verifies it and sets an **HttpOnly, SameSite=Lax,
    signed** cookie (`sofa_admin`). The token is `base64url(payload).HMAC` where
    the payload carries `{ sub: "owner", exp }`; it is signed with
-   `ADMIN_SESSION_SECRET` using Web Crypto (`crypto.subtle`), so the *same*
+   `ADMIN_SESSION_SECRET` using Web Crypto (`crypto.subtle`), so the _same_
    verify runs in the Edge middleware and in Node API routes.
 3. `middleware.ts` verifies the cookie on every protected request. Expired or
    tampered tokens fail verification and are treated as logged-out.

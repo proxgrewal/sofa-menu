@@ -2,10 +2,10 @@
 
 Two things ship from this repo:
 
-| Target | What | Trigger | Public URL |
-| --- | --- | --- | --- |
-| **GitHub Pages** | Static status/skeleton page (`site/`) | push to `main` (path `site/**`) or manual | `https://<owner>.github.io/<repo>/` |
-| **Vercel** | The full dynamic Next.js app (menu, QR, admin, ordering) | push to `main` | Vercel-assigned + custom domain |
+| Target           | What                                                     | Trigger                                   | Public URL                          |
+| ---------------- | -------------------------------------------------------- | ----------------------------------------- | ----------------------------------- |
+| **GitHub Pages** | Static status/skeleton page (`site/`)                    | push to `main` (path `site/**`) or manual | `https://<owner>.github.io/<repo>/` |
+| **Vercel**       | The full dynamic Next.js app (menu, QR, admin, ordering) | push to `main`                            | Vercel-assigned + custom domain     |
 
 ## How to deploy a change
 

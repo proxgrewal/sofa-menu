@@ -35,8 +35,14 @@ export function useMenuStream(slug: string, initial: StoredRestaurant | null = n
     es.addEventListener("snapshot", onMessage);
     // Every mutation event carries the full restaurant; handle them uniformly.
     for (const ev of [
-      "category.created", "category.updated", "category.deleted", "category.reordered",
-      "dish.created", "dish.updated", "dish.deleted", "dish.reordered",
+      "category.created",
+      "category.updated",
+      "category.deleted",
+      "category.reordered",
+      "dish.created",
+      "dish.updated",
+      "dish.deleted",
+      "dish.reordered",
     ]) {
       es.addEventListener(ev, onMessage);
     }

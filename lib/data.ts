@@ -65,16 +65,14 @@ const RESTAURANTS: Restaurant[] = [
               name: "Double-Double",
               description: "Two beef patties, two slices of cheese, lettuce, tomato, spread.",
               priceCents: 495,
-              photoUrl:
-                "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=640&q=70",
             },
             {
               id: "pdish_2",
               name: "Cheeseburger",
               description: "Single beef patty, American cheese, lettuce, tomato, spread.",
               priceCents: 345,
-              photoUrl:
-                "https://images.unsplash.com/photo-1550547660-d9450f859349?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=640&q=70",
             },
             {
               id: "pdish_3",
@@ -140,16 +138,14 @@ const RESTAURANTS: Restaurant[] = [
               name: "Whipped Feta",
               description: "Feta, honey, chili crisp, warm pita.",
               priceCents: 1100,
-              photoUrl:
-                "https://images.unsplash.com/photo-1633945274405-b6c8069047b0?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1633945274405-b6c8069047b0?w=640&q=70",
             },
             {
               id: "dish_2",
               name: "Charred Octopus",
               description: "Smoked paprika, fingerling potatoes, lemon.",
               priceCents: 1800,
-              photoUrl:
-                "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=640&q=70",
             },
           ],
         },
@@ -162,16 +158,14 @@ const RESTAURANTS: Restaurant[] = [
               name: "Wood-Fired Branzino",
               description: "Whole grilled sea bass, salsa verde, greens.",
               priceCents: 3200,
-              photoUrl:
-                "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=640&q=70",
             },
             {
               id: "dish_4",
               name: "Lamb Ragu Pappardelle",
               description: "Slow-braised lamb, pecorino, mint.",
               priceCents: 2600,
-              photoUrl:
-                "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=640&q=70",
             },
           ],
         },
@@ -210,16 +204,14 @@ const RESTAURANTS: Restaurant[] = [
               name: "The Classic Smash",
               description: "Double patty, American cheese, house sauce.",
               priceCents: 1000,
-              photoUrl:
-                "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=640&q=70",
             },
             {
               id: "dish_7",
               name: "Bunker Bacon",
               description: "Triple patty, smoked bacon, crispy onions.",
               priceCents: 1400,
-              photoUrl:
-                "https://images.unsplash.com/photo-1550547660-d9450f859349?w=640&q=70",
+              photoUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=640&q=70",
             },
           ],
         },

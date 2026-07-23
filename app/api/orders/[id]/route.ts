@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getOrder,
-  updateOrderStatus,
-  OrderError,
-  type OrderStatus,
-} from "@/lib/orders";
+import { getOrder, updateOrderStatus, OrderError, type OrderStatus } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
 
-const VALID_STATUSES: OrderStatus[] = [
-  "placed",
-  "in_progress",
-  "ready",
-  "completed",
-  "cancelled",
-];
+const VALID_STATUSES: OrderStatus[] = ["placed", "in_progress", "ready", "completed", "cancelled"];
 
 // GET /api/orders/{id} -> single order (guest confirmation polling)
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const order = await getOrder(id);
   if (!order) {
@@ -31,10 +17,7 @@ export async function GET(
 
 // PATCH /api/orders/{id} -> restaurant advances/cancels the order
 // Body: { status: OrderStatus }
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let body: { status?: string };
   try {

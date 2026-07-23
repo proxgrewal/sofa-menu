@@ -161,6 +161,10 @@ const ORDER_SELECT =
   "subtotal_cents, tax_cents, total_cents, status, payment_status, note, " +
   "created_at, updated_at, order_items ( dish_id, name, unit_price_cents, quantity, line_total_cents )";
 
+/** Thrown when an order's ticket collides with an existing one (concurrent
+ * placement). Callers retry with a fresh sequence number. */
+class TicketCollision extends Error {}
+
 async function dbInsertOrder(order: Order): Promise<void> {
   const sb = await getServiceClient();
   const { error: oErr } = await sb.from("orders").insert({
@@ -179,7 +183,12 @@ async function dbInsertOrder(order: Order): Promise<void> {
     created_at: order.createdAt,
     updated_at: order.updatedAt,
   });
-  if (oErr) throw new OrderError(`Could not save order: ${oErr.message}`, 500);
+  if (oErr) {
+    // 23505 = unique_violation (the unique(restaurant_slug, ticket) index in
+    // migration 0004). Signal the caller to retry with a fresh sequence.
+    if ((oErr as { code?: string }).code === "23505") throw new TicketCollision(oErr.message);
+    throw new OrderError(`Could not save order: ${oErr.message}`, 500);
+  }
 
   const { error: iErr } = await sb.from("order_items").insert(
     order.lines.map((l) => ({
@@ -197,10 +206,7 @@ async function dbInsertOrder(order: Order): Promise<void> {
 // --- Pricing / validation (pure) ----------------------------------------
 
 /** Index every dish in a restaurant menu by id for O(1) pricing lookups. */
-function indexDishes(restaurant: Restaurant): Map<
-  string,
-  { name: string; priceCents: number }
-> {
+function indexDishes(restaurant: Restaurant): Map<string, { name: string; priceCents: number }> {
   const map = new Map<string, { name: string; priceCents: number }>();
   for (const cat of restaurant.menu.categories) {
     for (const dish of cat.dishes) {
@@ -269,7 +275,10 @@ export function priceCart(
  * order's paymentStatus to "paid" on webhook. Until then every order is
  * recorded as "deferred" (pay-at-table / pay-on-pickup).
  */
-export function capturePayment(_amountCents: number, _currency: string): {
+export function capturePayment(
+  _amountCents: number,
+  _currency: string
+): {
   status: PaymentStatus;
 } {
   return { status: "deferred" };
@@ -309,35 +318,57 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
   const priced = priceCart(restaurant, input.items);
   const payment = capturePayment(priced.totalCents, restaurant.currency);
 
-  const seq = (await countOrders(restaurant.slug)) + 1;
-  const now = new Date().toISOString();
-
-  const order: Order = {
-    id: crypto.randomUUID(),
-    ticket: `${ticketPrefix(restaurant)}-${String(seq).padStart(4, "0")}`,
-    restaurantSlug: restaurant.slug,
-    restaurantName: restaurant.name,
-    tableLabel: (input.tableLabel ?? "").trim() || "Takeaway",
-    currency: restaurant.currency,
-    lines: priced.lines,
-    subtotalCents: priced.subtotalCents,
-    taxCents: priced.taxCents,
-    totalCents: priced.totalCents,
-    status: "placed",
-    paymentStatus: payment.status,
-    note: (input.note ?? "").trim().slice(0, 500),
-    createdAt: now,
-    updatedAt: now,
+  const build = (seq: number): Order => {
+    const now = new Date().toISOString();
+    return {
+      id: crypto.randomUUID(),
+      ticket: `${ticketPrefix(restaurant)}-${String(seq).padStart(4, "0")}`,
+      restaurantSlug: restaurant.slug,
+      restaurantName: restaurant.name,
+      tableLabel: (input.tableLabel ?? "").trim() || "Takeaway",
+      currency: restaurant.currency,
+      lines: priced.lines,
+      subtotalCents: priced.subtotalCents,
+      taxCents: priced.taxCents,
+      totalCents: priced.totalCents,
+      status: "placed",
+      paymentStatus: payment.status,
+      note: (input.note ?? "").trim().slice(0, 500),
+      createdAt: now,
+      updatedAt: now,
+    };
   };
 
-  if (isSupabaseConfigured()) {
-    await dbInsertOrder(order);
-  } else {
-    const all = fileReadAll();
-    all.push(order);
-    fileWriteAll(all);
+  // Ticket numbers are `count + 1`, which two concurrent orders can collide on.
+  // Retry with a bumped sequence until the insert wins the race. The DB's
+  // unique(restaurant_slug, ticket) index (migration 0004) is the source of
+  // truth; the file fallback checks existing tickets in-process.
+  let seq = (await countOrders(restaurant.slug)) + 1;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const order = build(seq);
+    if (isSupabaseConfigured()) {
+      try {
+        await dbInsertOrder(order);
+        return order;
+      } catch (err) {
+        if (err instanceof TicketCollision) {
+          seq++;
+          continue;
+        }
+        throw err;
+      }
+    } else {
+      const all = fileReadAll();
+      if (all.some((o) => o.restaurantSlug === order.restaurantSlug && o.ticket === order.ticket)) {
+        seq++;
+        continue;
+      }
+      all.push(order);
+      fileWriteAll(all);
+      return order;
+    }
   }
-  return order;
+  throw new OrderError("Could not assign a ticket number; please retry.", 503);
 }
 
 async function countOrders(restaurantSlug: string): Promise<number> {
@@ -373,7 +404,7 @@ export async function listOrders(restaurantSlug: string): Promise<Order[]> {
       .eq("restaurant_slug", restaurantSlug)
       .order("created_at", { ascending: false });
     if (error) throw new OrderError(`Could not list orders: ${error.message}`, 500);
-    return (data as OrderRow[] | null ?? []).map(rowToOrder);
+    return ((data as OrderRow[] | null) ?? []).map(rowToOrder);
   }
   return fileReadAll()
     .filter((o) => o.restaurantSlug === restaurantSlug)
@@ -407,6 +438,30 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   const order = all.find((o) => o.id === id);
   if (!order) throw new OrderError("Order not found.", 404);
   order.status = status;
+  order.updatedAt = now;
+  fileWriteAll(all);
+  return order;
+}
+
+/** Set an order's payment status (called by the Stripe webhook on success). */
+export async function setPaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<Order> {
+  const now = new Date().toISOString();
+  if (isSupabaseConfigured()) {
+    const sb = await getServiceClient();
+    const { data, error } = await sb
+      .from("orders")
+      .update({ payment_status: paymentStatus, updated_at: now })
+      .eq("id", id)
+      .select(ORDER_SELECT)
+      .maybeSingle();
+    if (error) throw new OrderError(`Could not update payment: ${error.message}`, 500);
+    if (!data) throw new OrderError("Order not found.", 404);
+    return rowToOrder(data as OrderRow);
+  }
+  const all = fileReadAll();
+  const order = all.find((o) => o.id === id);
+  if (!order) throw new OrderError("Order not found.", 404);
+  order.paymentStatus = paymentStatus;
   order.updatedAt = now;
   fileWriteAll(all);
   return order;

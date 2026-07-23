@@ -23,11 +23,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function MenuPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function MenuPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const restaurant = getRestaurantBySlug(slug);
   if (!restaurant) notFound();
@@ -58,9 +54,7 @@ export default async function MenuPage({
               <div className="body">
                 <div className="row">
                   <p className="name">{dish.name}</p>
-                  <span className="price">
-                    {formatPrice(dish.priceCents, currency)}
-                  </span>
+                  <span className="price">{formatPrice(dish.priceCents, currency)}</span>
                 </div>
                 <p className="desc">{dish.description}</p>
                 <div className="dish-actions">

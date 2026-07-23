@@ -8,13 +8,7 @@ import { cartCount, cartSubtotalCents, CART_EVENT } from "@/lib/cart";
  * Sticky "View cart · N items · $X" bar the guest menu shows at the bottom of
  * the screen. Hidden when the cart is empty. Links to the cart/checkout page.
  */
-export default function CartBar({
-  slug,
-  currency,
-}: {
-  slug: string;
-  currency: string;
-}) {
+export default function CartBar({ slug, currency }: { slug: string; currency: string }) {
   const [count, setCount] = useState(0);
   const [subtotal, setSubtotal] = useState(0);
 

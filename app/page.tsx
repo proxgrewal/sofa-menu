@@ -14,9 +14,7 @@ export default function Home() {
     <main className="shell">
       <header className="menu-header">
         <h1>SOFA</h1>
-        <p className="tagline">
-          Every menu one scan away. Scan a code below to open a live menu.
-        </p>
+        <p className="tagline">Every menu one scan away. Scan a code below to open a live menu.</p>
       </header>
 
       {restaurants.map((r) => (

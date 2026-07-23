@@ -303,7 +303,10 @@ function findCategory(r: StoredRestaurant, categoryId: string): StoredCategory {
 }
 
 export class StoreError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string
+  ) {
     super(message);
   }
 }
@@ -435,9 +438,7 @@ export async function reorderDishes(
       return true;
     });
   }
-  target.dishes = orderedIds
-    .map((id) => pulled.get(id))
-    .filter((d): d is StoredDish => !!d);
+  target.dishes = orderedIds.map((id) => pulled.get(id)).filter((d): d is StoredDish => !!d);
   await commit("dish.reordered", r);
   return r;
 }
@@ -454,7 +455,8 @@ function findDish(r: StoredRestaurant, dishId: string): StoredDish {
 
 function normalizePrice(v: unknown): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) throw new StoreError(400, "price must be a non-negative number of cents");
+  if (!Number.isFinite(n) || n < 0)
+    throw new StoreError(400, "price must be a non-negative number of cents");
   return Math.round(n);
 }
 

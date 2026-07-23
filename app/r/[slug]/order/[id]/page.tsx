@@ -21,15 +21,12 @@ export default async function OrderConfirmationPage({
       <div style={badge}>✓</div>
       <h1 style={h1}>Order placed</h1>
       <p style={{ color: "#666", marginTop: 4 }}>
-        Thanks! {order.restaurantName} has your order for{" "}
-        <strong>{order.tableLabel}</strong>.
+        Thanks! {order.restaurantName} has your order for <strong>{order.tableLabel}</strong>.
       </p>
 
       <div style={ticketBox}>
         <span style={{ color: "#666", fontSize: 13 }}>Ticket</span>
-        <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>
-          {order.ticket}
-        </span>
+        <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>{order.ticket}</span>
       </div>
 
       <OrderStatusLive orderId={order.id} initialStatus={order.status} />
@@ -67,8 +64,7 @@ export default async function OrderConfirmationPage({
       )}
 
       <p style={{ color: "#888", fontSize: 13, marginTop: 20 }}>
-        Payment status: <strong>{order.paymentStatus}</strong> — settle at the
-        table.
+        Payment status: <strong>{order.paymentStatus}</strong> — settle at the table.
       </p>
 
       <Link href={`/r/${slug}`} style={backLink}>

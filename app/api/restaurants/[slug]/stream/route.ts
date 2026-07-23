@@ -19,9 +19,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   const stream = new ReadableStream({
     start(controller) {
       const send = (event: string, r: StoredRestaurant) => {
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(r)}\n\n`)
-        );
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(r)}\n\n`));
       };
       // Prime the client with current state immediately.
       send("snapshot", initial);
